@@ -17,10 +17,13 @@ class UEFormatOptions:
 
     @classmethod
     def from_settings(cls, settings: UFSettings) -> UEFormatOptions:
-        return cls(**{
-            k: v for k, v in settings.get_props().items()
-            if k in inspect.signature(cls).parameters
-        })
+        return cls(
+            **{
+                k: v
+                for k, v in settings.get_props().items()
+                if k in inspect.signature(cls).parameters
+            }
+        )
 
 
 @dataclass(slots=True)
@@ -33,7 +36,8 @@ class UEModelOptions(UEFormatOptions):
     import_virtual_bones: bool = False
     target_lod: int = 0
     allowed_reorient_children: dict = None
-
+    texture_directory: str = None
+    material_directory: str = None
 
 @dataclass(slots=True)
 class UEAnimOptions(UEFormatOptions):
@@ -41,7 +45,9 @@ class UEAnimOptions(UEFormatOptions):
     import_curves: bool = True
     override_skeleton: Armature | None = None
 
+
 @dataclass(slots=True)
 class UEPoseOptions(UEFormatOptions):
     root_bone: str = ""
     override_skeleton: Armature | None = None
+

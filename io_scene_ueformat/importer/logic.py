@@ -3,7 +3,7 @@ from __future__ import annotations
 import gzip
 from pathlib import Path
 from typing import cast
-
+from os.path import isfile, join, dirname
 import bpy
 import numpy as np
 from bpy.types import Action, ArmatureModifier, ByteColorAttribute, EditBone, FCurve, Object, PoseBone
@@ -45,16 +45,20 @@ class UEFormatImport:
         Log.time_start(f"Import {path}")
 
         with path.open("rb") as file:
-            obj = self.import_data(file.read())
+            # this sucks I'm aware, but I gotta get the path there somehow
+            # and I don't want to assume we can only import one file at a time
+            # alternatively I could make the texture import run after the model is imported
+            # but its not a terrible idea to have the path available in case any other data can be used
+            obj = self.import_data(file.read(), path)
 
         Log.time_end(f"Import {path}")
 
         return obj
 
-    def import_data(self, data: bytes) -> Object | Action:
+    def import_data(self, data: bytes, path: str) -> Object | Action:
         with FArchiveReader(data) as ar:
-            return self.import_data_by_reader(ar)
-    def import_data_by_reader(self, ar: FArchiveReader) -> Object | Action:
+            return self.import_data_by_reader(ar, path)
+    def import_data_by_reader(self, ar: FArchiveReader, path: str) -> Object | Action:
         magic = ar.read_string(len(MAGIC))
         if magic != MAGIC:
             msg = "Invalid magic"
@@ -96,7 +100,7 @@ class UEFormatImport:
         read_archive.metadata["scale"] = self.options.scale_factor
 
         if identifier == MODEL_IDENTIFIER:
-            return self.import_uemodel_data(read_archive, object_name)
+            return self.import_uemodel_data(read_archive, object_name, path)
         if identifier == ANIM_IDENTIFIER:
             return self.import_ueanim_data(read_archive, object_name)
         if identifier == POSE_IDENTIFIER:
@@ -107,8 +111,10 @@ class UEFormatImport:
         raise ValueError
 
     # TODO: clean up code quality, esp in the skeleton department
-    def import_uemodel_data(self, ar: FArchiveReader, name: str) -> tuple[bpy.types.Object, UEModel]:
+    def import_uemodel_data(self, ar: FArchiveReader, name: str, path: str) -> tuple[bpy.types.Object, UEModel]:
         assert isinstance(self.options, UEModelOptions)  # noqa: S101
+
+
 
         data: UEModel
         if ar.file_version >= EUEFormatVersion.LevelOfDetailFormatRestructure:
@@ -197,13 +203,28 @@ class UEFormatImport:
                     if mat is None:
                         mat = bpy.data.materials.new(name=material.material_name)
                     mesh_data.materials.append(mat)
-
                     start_face_index = material.first_index // 3
                     end_face_index = start_face_index + material.num_faces
                     for face_index in range(start_face_index, end_face_index):
                         mesh_data.polygons[face_index].material_index = i
 
             created_lods.append(mesh_object)
+            if isfile(props:=str(path).replace(".uemodel",".json")):
+                try:
+                    parse_sm_props(props, mesh_object)
+                except Exception as e:
+                    print(f"Error parsing skeletal mesh props: {e}")
+                    try:
+                        for material in bpy.data.materials:
+                            mat_file = ""
+                            if not isfile(mat_file:=(join(dirname(path), f"{material.material_name}.json"))):
+                                if not isfile(mat_file:=(join(dirname(path),"..","Materials", f"{material.material_name}.json"))):
+                                    match_names(material, path)
+                            if isfile(mat_file):
+                                mat_textures = parse_mat_props(mat_file)
+                                apply_texture(mat, mat_textures)
+                    except Exception as e:
+                        print(f"Error parsing skeletal mesh props: {e}")
 
         # skeleton
         if data.skeleton and (data.skeleton.bones or (self.options.import_sockets and data.skeleton.sockets)):
@@ -472,6 +493,8 @@ class UEFormatImport:
                 if self.options.link:
                     bpy.context.collection.objects.link(collision_mesh_object)
 
+
+
         return return_object, data
 
     def import_ueanim_data(self, ar: FArchiveReader, name: str) -> tuple[bpy.types.Action, UEAnim]:
@@ -490,10 +513,6 @@ class UEFormatImport:
         if self.options.link:
             armature.animation_data_create()
             armature.animation_data.action = action
-
-        if self.options.link and bpy.app.version >= (4, 4, 0):
-            slot = action.slots.new(id_type='OBJECT', name=f"Slot_{armature.name}")
-            armature.animation_data.action_slot = slot
             
 
         # bone anim data
@@ -589,6 +608,10 @@ class UEFormatImport:
                     for key in curve.keys:
                         shape_key.value = key.value
                         shape_key.keyframe_insert(data_path="value", frame=key.frame)
+                    
+        if self.options.link and bpy.app.version >= (4, 4, 0):
+            slot = action.slots.new(id_type='OBJECT', name=f"Slot_{armature.name}")
+            armature.animation_data.action_slot = slot
 
         return action, data
 

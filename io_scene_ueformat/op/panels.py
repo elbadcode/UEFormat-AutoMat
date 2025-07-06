@@ -44,7 +44,6 @@ class UEFORMAT_PT_Panel(Panel):  # noqa: N801
         box.row().prop(settings, "import_virtual_bones")
         box.row().prop(settings, "reorient_bones")
         box.row().prop(settings, "bone_length")
-
         if not import_menu:
             box.row().operator("uf.import_uemodel", icon="MESH_DATA")
 
@@ -65,10 +64,10 @@ class UEFORMAT_PT_Panel(Panel):  # noqa: N801
 
     @staticmethod
     def draw_pose_options(
-            obj: Panel | Operator,
-            settings: UFSettings,
-            *,
-            import_menu: bool = False,
+        obj: Panel | Operator,
+        settings: UFSettings,
+        *,
+        import_menu: bool = False,
     ) -> None:
         box = obj.layout.box()
         box.label(text="Pose", icon="OUTLINER_OB_ARMATURE")
