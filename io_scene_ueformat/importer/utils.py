@@ -155,10 +155,13 @@ def asset_to_os(props_path, asset_path):
     if not asset_path.startswith(("Game","/Game")):
         asset_path = asset_path.split("Content")[1]
         props_path = props_path.split("Content")[0]
-        return f"{props_path.replace("\\","/")}/Content/{asset_path}"
-    if asset_path[0] == '/':
-        asset_path = asset_path[1:]
-    asset_path = asset_path.replace("Game/",f"{props_path[:props_path.find("Content")].replace("\\", "/")}Content/")
+        props_path = str(props_path).replace("\\","/")
+        return f"{props_path}/Content/{asset_path}"
+    props_path = str(props_path).replace("\\","/")
+    asset_path = asset_path.split("Game")[1]
+    props_path = props_path.split("Content")[0]
+    asset_path = f"{props_path}/Content/{asset_path}"
+    asset_path = asset_path.replace("//","/")
     return asset_path
 
 def parse_mat_props(prop):
@@ -203,19 +206,10 @@ def apply_texture(material, textures):
     bsdf.location = (0, 0)
     output.location = (300, 0)
     links.new(bsdf.outputs["BSDF"], output.inputs["Surface"])
-
-    # Try to find and apply diffuse texture
-    diff = next((tex for tex in textures if "_D" in tex or tex[:tex.rfind(".")].endswith("D")), None)
-    if diff:
-        dtexture = nodes.new(type="ShaderNodeTexImage")
-        dtexture.image = bpy.data.images.load(diff)
-        dtexture.image.alpha_mode = "CHANNEL_PACKED"
-        dtexture.location = (-300, 0)
-        links.new(dtexture.outputs["Color"], bsdf.inputs["Base Color"])
-
     # Try to find and apply normal texture
     norm = next((tex for tex in textures if "_N" in tex or tex[:tex.rfind(".")].endswith("N")), None)
     if norm:
+        textures.remove(norm)
         ntexture = nodes.new(type="ShaderNodeTexImage")
         ntexture.image = bpy.data.images.load(norm)
         ntexture.image.colorspace_settings.name = "Non-Color"
@@ -224,6 +218,17 @@ def apply_texture(material, textures):
         normal_map.location = (-100, -300)
         links.new(ntexture.outputs["Color"], normal_map.inputs["Color"])
         links.new(normal_map.outputs["Normal"], bsdf.inputs["Normal"])
+
+    # Try to find and apply diffuse texture
+    diff = next((tex for tex in textures if ("_D" in tex or "_A" in tex) or tex[:tex.rfind(".")].endswith(("D","A"))), None)
+    if diff:
+        dtexture = nodes.new(type="ShaderNodeTexImage")
+        dtexture.image = bpy.data.images.load(diff)
+        dtexture.image.alpha_mode = "CHANNEL_PACKED"
+        dtexture.location = (-300, 0)
+        links.new(dtexture.outputs["Color"], bsdf.inputs["Base Color"])
+
+
 
 
 def parse_sm_props(prop, obj = None):
