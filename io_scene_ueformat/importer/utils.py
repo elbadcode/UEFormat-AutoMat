@@ -152,9 +152,14 @@ def match_names(material, path):
     apply_texture(material, mat_textures)
 
 def asset_to_os(props_path, asset_path):
-    if asset_path.startswith("Game"):
-        asset_path = asset_path.replace("Game", "Content")
-    return join(props_path[:props_path.find("Content")].replace("\\", "/"), asset_path[asset_path.find("Content/"):])
+    if not asset_path.startswith(("Game","/Game")):
+        asset_path = asset_path.split("Content")[1]
+        props_path = props_path.split("Content")[0]
+        return f"{props_path.replace("\\","/")}/Content/{asset_path}"
+    if asset_path[0] == '/':
+        asset_path = asset_path[1:]
+    asset_path = asset_path.replace("Game/",f"{props_path[:props_path.find("Content")].replace("\\", "/")}Content/")
+    return asset_path
 
 def parse_mat_props(prop):
     try:
@@ -227,15 +232,21 @@ def parse_sm_props(prop, obj = None):
 
     props_path = abspath(prop)
     mat_dict = {}
-
+    smesh = props[-1]
+    skeletal = smesh.get("Type") == "SkeletalMesh"
     # Expecting the last entry to be the SkeletalMesh
-    skelmesh = props[-1]
-    if skelmesh.get("Type") != "SkeletalMesh":
-        print(f"Unexpected type in {prop}")
-        return
-
-    materials = skelmesh.get("SkeletalMaterials", [])
-    lod0_sections = skelmesh.get("LODModels", [{}])[0].get("Sections", [])
+    if not skeletal:
+        if smesh.get("Type") != "StaticMesh":
+            print(f"Unexpected type in {prop}")
+            return
+    materials = None
+    lod0_sections = None
+    if skeletal:
+        materials = smesh.get("SkeletalMaterials", [])
+        lod0_sections = smesh.get("LODModels", [{}])[0].get("Sections", [])
+    else:
+        materials = smesh["Properties"].get("StaticMaterials", [])
+        lod0_sections = smesh["RenderData"].get("LODs", [{}])[0].get("Sections", [])
 
     for section in lod0_sections:
         mat_index = section.get("MaterialIndex")
@@ -243,6 +254,8 @@ def parse_sm_props(prop, obj = None):
             mat = materials[mat_index]
             slot_name = mat.get("MaterialSlotName")
             mat_path = mat.get("Material", {}).get("ObjectPath")
+            if not mat_path:
+                mat_path = mat.get("MaterialInterface", {}).get("ObjectPath")
             if slot_name and mat_path:
                 mat_dict[slot_name] = mat_path
 
