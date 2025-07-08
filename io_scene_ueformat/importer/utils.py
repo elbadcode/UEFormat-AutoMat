@@ -179,6 +179,14 @@ def parse_mat_props(prop):
                 if isfile(texture_path:=asset_to_os(abspath(prop), tex_path)):
                     textures.append(texture_path)
                     print(texture_path)
+                else:
+                    texture_path = texture_path.replace(".png", ".tga")
+                    if isfile(texture_path):
+                        textures.append(texture_path)
+                    else:
+                        texture_path = texture_path.replace(".tga", ".jpeg")
+                        if isfile(texture_path):
+                            textures.append(texture_path)
             print(textures)
             return textures
         elif isinstance(mat_prop, dict):
@@ -188,6 +196,15 @@ def parse_mat_props(prop):
                     if isfile(texture_path:=asset_to_os(abspath(prop), tex_path)):
                         textures.append(texture_path)
                         print(texture_path)
+                    else:
+                        texture_path = texture_path.replace(".png", ".tga")
+                        if isfile(texture_path):
+                            textures.append(texture_path)
+                        else:
+                            texture_path = texture_path.replace(".tga", ".jpeg")
+                            if isfile(texture_path):
+                                textures.append(texture_path)
+
             print(textures)
             return textures
     except Exception as e:
